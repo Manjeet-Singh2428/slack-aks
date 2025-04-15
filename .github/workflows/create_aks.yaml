@@ -1,0 +1,52 @@
+name: Deploy AKS with Terraform
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write  # Required for OIDC
+  contents: read
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  RESOURCE_GROUP: "slack-aks-test"
+  CLUSTER_NAME: "slack-aks-test-aks"
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # - name: Login to Azure via OIDC
+      #   uses: azure/login@v2
+      #   with:
+      #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
+      #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+      #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./examples
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: ./examples
+
+      - name: Manual Approval
+        uses: trstringer/manual-approval@v1
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          secret: ${{ github.token }}
+          approvers: "your-github-username"
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: ./examples
